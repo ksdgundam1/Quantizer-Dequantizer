@@ -4,68 +4,46 @@
 #include <stdlib.h>
 
 const int width = 512, height = 512;
+//const int quantized_level = 32;
 
-unsigned char original_red[512][512];    //512 * 512 size image source
-unsigned char original_green[512][512];
-unsigned char original_blue[512][512];
-
-unsigned char quantized_red[512][512];
-unsigned char quantized_green[512][512];
-unsigned char quantized_blue[512][512];
+unsigned char original_rgb[1536][512];    //512 * 512 size image source
+unsigned char quantized_rgb[1536][512];
+unsigned char dequantized_rgb[1536][512];
 
 int main(void)
 {
     FILE* original_image = fopen("Lenna_512x512_original.raw", "rb");
-    FILE* quantized_image = NULL;
+    FILE* quantized_image = fopen("Lenna_512x512_quantized.raw", "w+");
+    
+    int bits = -1, sum = 1;
+    printf("input quantize bits (0 ~ 7)\n>>");
+    scanf("%d", &bits);
+
+    for (int i = 0; i < bits; i++)
+        sum *= 2;
+
+    const int quantized_level = sum;
+    printf("quantized level>>%3d\n", quantized_level);
+    int quantize_step = 512 / quantized_level;
 
 
     //rgb 정보 읽기
-    fread(original_red, sizeof(unsigned char), width * height, original_image);
-    fread(original_green, sizeof(unsigned char), width * height, original_image);
-    fread(original_blue, sizeof(unsigned char), width * height, original_image);
-
-    /*
-    for (int i = 240; i < 260; i++)
-    {
-        printf("{");
-        for (int j = 280; j < 300; j++)
-        {
-            printf("%5d", original_red[i][j]);
-        }
-        printf("\t]\n");
-    }
-    */
+    fread(original_rgb, sizeof(unsigned char), width * 3 * height, original_image);
 
     //양자화
-    for (int i = 0; i < height; i++)
-    {
+    for (int i = 0; i < 3 * height; i++)
         for (int j = 0; j < width; j++)
-        {
-            quantized_red[i][j] = original_red[i][j];
-            //quantized_green[i][j] = original_green[i][j];
-            //quantized_blue[i][j] = original_blue[i][j];
-        }
-    }
+            for (int k = 0; k < quantized_level; k++)
+                    quantized_rgb[i][j] = original_rgb[i][j] / quantize_step;
 
-    /*
-    for (int i = 0; i < height; i++)
-        for (int j = 0; j < height; j++)
-            for (int k = 0; k < 16; k++)
-                if ((original_red[i][j] >= (k * 16)) && (original_red[i][j] < (k * 16 + 16)))
-                    quantized_red[i][j] = k * 16 + 8;       //각 level의 중앙값으로 양자화
-    */
-    // 변환한 이미지 저장
-    quantized_image = fopen("Lenna_512x512_quantized.raw", "w+");
+    //역 양자화
+    for (int i = 0; i < 3 * height; i++)
+        for (int j = 0; j < width; j++)
+            for (int k = 0; k < quantized_level; k++)
+                if ((original_rgb[i][j] >= (k * quantize_step)) && (original_rgb[i][j] < ((k + 1) * quantize_step)))
+                    dequantized_rgb[i][j] = (quantized_rgb[i][j] * quantize_step) + (quantize_step / 2);       //각 level의 중앙값으로 양자화
 
-    fwrite(quantized_red, sizeof(unsigned char), width * height, quantized_image);
-    fclose(quantized_image);
-
-    quantized_image = fopen("Lenna_512x512_quantized.raw", "a");
-    fwrite(quantized_green, sizeof(unsigned char), width * height, quantized_image);
-    fclose(quantized_image);
-
-    quantized_image = fopen("Lenna_512x512_quantized.raw", "a");
-    fwrite(quantized_blue, sizeof(unsigned char), width * height, quantized_image);
+    fwrite(dequantized_rgb, sizeof(unsigned char), width * 3 * height, quantized_image);
   
     fclose(original_image);
     fclose(quantized_image);
